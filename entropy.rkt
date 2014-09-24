@@ -1,22 +1,23 @@
 #lang racket
 
-(define (entropy Sample)
-  (let ((len (length Sample)))
+(define (entropy accessor samples)
+  (let ((len (length samples)))
     (define (ent-iter s total seen-classes)
       (cond ((null? s) total)
-	    ((member (car s) seen-classes)
+	    ((member (car (accessor s)) seen-classes)
 	     (ent-iter (cdr s) total seen-classes))
-	    (else (let ((ratio (/ (count s (car s)) len)))
+	    (else (let ((ratio (/ (count accessor s (car (accessor s))) len)))
 		  (ent-iter
 		   (cdr s)
 		   (+ total (* -1 (* ratio (log2 ratio))))
-		   (cons (car s) seen-classes))))))
-    (ent-iter Sample 0 '())))
+		   (cons (car (accessor s)) seen-classes))))))
+    (ent-iter samples 0 '())))
 
-(define (count samples target)
+(define (class sample) (car sample))
+(define (count accessor samples target)
   (foldl 
    (lambda (x acc) 
-     (if (eq? x target)
+     (if (eq? (accessor x) target)
          (+ acc 1)
          acc))
    0
@@ -27,18 +28,39 @@
 (define (log2 n)
   (logn n 2))
 
+(define (samples-with-attrib-val  value accessor samples)
+  (filter (lambda (x) (eq? (accessor x) value)) samples))
 
-(define (make-dec-tree samples attributes) '())
 
-;;gain for an attribute value is  for_each value in attribute { |with_value| /|examples| * Entropy(with_value)}
-(define (gain examples attribute)
-  (let ((total (length examples))
-        (values (map attribute examples)))
-    (define (gain-iter examples total seen-values) 
+
+
+(define (gain attribute examples)
+  (let ((len (length examples)))
+    (define (gain-loop examples total seen-values)
       (cond ((null? examples) total)
-            ((member (car examples) seen-values)
-             (gain-iter (cdr examples) total seen-values))
-            (else (let (this-value (filter (lambda (x) (eq? x (car examples))) examples))
-                    ((gain-iter (cdr examples)
-                             (+ total (* (/ (length this-value) total) (entropy (filter ) ))))))
-    (gain-iter values 0 '())))
+	    ((member (attribute (car examples)) seen-values) (gain-loop (cdr examples) total seen-values))
+	    (else (let ((with-this-value (samples-with-attrib-val
+					 (attribute (car examples))
+					 attribute
+					 examples)))
+		    (gain-loop
+		     (cdr examples)
+		     (+ total
+			(* (/ (length with-this-value) len)
+			   (entropy class with-this-value))) (cons (attribute (car examples)) seen-values) )))))
+    (gain-loop examples 0 '())))
+
+
+(define (make-dec-tree classifier attributes examples) '())
+
+(define test-examples (list (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
+		   (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
+		   (cons 't 'strong) (cons 't 'strong) (cons 't 'strong)
+		   (cons 'f 'weak) (cons 'f 'weak) (cons 'f 'strong)
+		   (cons 'f 'strong) (cons 'f 'strong)))
+
+(define (wind-strength x) (cdr x))
+
+(- (entropy class test) (gain wind-strength test))
+
+(make-dec-tree class (list wind-strength) test-examples)
