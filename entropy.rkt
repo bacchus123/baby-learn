@@ -32,8 +32,6 @@
   (filter (lambda (x) (eq? (accessor x) value)) samples))
 
 
-
-
 (define (gain attribute examples)
   (let ((len (length examples)))
     (define (gain-loop examples total seen-values)
@@ -51,13 +49,67 @@
     (gain-loop examples 0 '())))
 
 
-(define (make-dec-tree classifier attributes examples) '())
+(define (all-positive classes)
+  (all-the-same #t value))
+(define (all-negative classes)
+  (all-the-same #f value))
+(define (all-the-same value list)
+  (if (null? list)
+      #t
+      (if (not eq? (car classes) value)
+	  #f
+	  (all-the-same (cdr list) value))))
 
-(define test-examples (list (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
-		   (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
-		   (cons 't 'strong) (cons 't 'strong) (cons 't 'strong)
-		   (cons 'f 'weak) (cons 'f 'weak) (cons 'f 'strong)
-		   (cons 'f 'strong) (cons 'f 'strong)))
+(define (most-common-value classes)
+  (define (greatest-number values)
+    (foldl (lambda (value acc)
+	     (if (> (car value) (car acc))
+		 value
+		 acc)) 0 values))
+  (define (find-and-inc value values)
+    (foldl (lambda (x acc)
+	     (if (eq? (cdr x) value)
+		 (cons (acc (cons (+ 1 (car x)) (cdr x))))
+		 (cons acc x)))))
+  (define (common-iter classes values)
+    (if (null? classes (greatest-number values))
+	(greatest-number values)
+	(common-iter (cdr classes) (find-and-inc (car classes) values))))
+  (common-iter classes '()))
+
+(define (best-classifies attributes examples)
+  foldl (lambda (x acc)
+	  (let ((gains (gain x examples)))
+	    (if (> gains (car acc))
+		(cons gains x)
+		acc))))
+(define (values attribute examples)
+  (foldl (lambda (x acc)
+	   (if (member (attribute x) acc)
+	       (cons (attribute x) acc)
+	       acc))))
+
+(define (make-dec-tree classifier attributes examples)
+  (let ((classes (map classifier attributes)))
+    (cond ((all-positive classes)
+	   't)
+	  ((all-negative classes)
+	   'f)
+	  ((null? attributes) (most-common-value classes))
+	  (else (let ((attrib (cdr (best-classifies attribues examples))))
+		  (map )))))
+
+
+
+
+
+
+
+  (define test-examples (list (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
+			      (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
+			      (cons 't 'strong) (cons 't 'strong) (cons 't 'strong)
+			      (cons 'f 'weak) (cons 'f 'weak) (cons 'f 'strong)
+			      (cons 'f 'strong) (cons 'f 'strong))))
 
 (define (wind-strength x) (cdr x))
 
