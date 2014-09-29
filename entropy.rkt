@@ -72,31 +72,32 @@
     (foldl (lambda (x acc)
 	     (if (eq? (cdr x) value)
 		 (cons (acc (cons (+ 1 (car x)) (cdr x))))
-		 (cons acc x)))))
+		 (cons acc x))) (cons 0 '()) values))
   (define (common-iter classes values)
-    (if (null? classes (greatest-number values))
+    (if (null? classes)
 	(greatest-number values)
 	(common-iter (cdr classes) (find-and-inc (car classes) values))))
   (common-iter classes '()))
 
 (define (best-classifies attributes examples)
-  (foldl (lambda (x acc)
-	  (let ((gains (gain x examples)))
+  (foldl (lambda (attrib acc)
+	  (let ((gains (gain attrib examples)))
 	    (if (> gains (car acc))
-		(cons gains x)
-		acc))) '() '())) ;;todo
+		(cons gains attrib)
+		acc)))
+         (cons 0 '()) attributes)) ;;todo
 
 (define (list-values attribute examples)
   (foldl (lambda (x acc)
-	   (if (member (attribute x) acc)
+	   (if (not (member (attribute x) acc))
 	       (cons (attribute x) acc)
-	       acc))))
+	       acc))'() examples))
 (define (filter-on-attribute attribute examples)
   (define (filter-iter hash examples)
     (if (null? examples) hash
 	(let ((value (attribute (car examples))))
 	  (filter-iter
-	   (hash-set! hash value (cons (car examples) (hash-ref! hash value '())))
+	   (begin (hash-set! hash value (cons (car examples) (hash-ref! hash value '()))) hash)
 	   (cdr examples)))))
   (filter-iter (make-hash) examples))
 
