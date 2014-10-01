@@ -13,7 +13,6 @@
 		   (cons (car (accessor s)) seen-classes))))))
     (ent-iter samples 0 '())))
 
-(define (class sample) (car sample))
 (define (count accessor samples target)
   (foldl 
    (lambda (x acc) 
@@ -30,7 +29,6 @@
 
 (define (samples-with-attrib-val  value accessor samples)
   (filter (lambda (x) (eq? (accessor x) value)) samples))
-
 
 (define (gain attribute examples)
   (let ((len (length examples)))
@@ -51,7 +49,6 @@
 
 (define (all-positive classes)
   (all-the-same #t classes))
-
 (define (all-negative classes)
   (all-the-same #f classes))
 
@@ -63,21 +60,17 @@
 	  (all-the-same (cdr list) value))))
 
 (define (most-common-value classes)
-  (define (greatest-number values)
-    (foldl (lambda (value acc)
-	     (if (> (car value) (car acc))
-		 value
-		 acc)) 0 values))
-  (define (find-and-inc value values)
-    (foldl (lambda (x acc)
-	     (if (eq? (cdr x) value)
-		 (cons (acc (cons (+ 1 (car x)) (cdr x))))
-		 (cons acc x))) (cons 0 '()) values))
-  (define (common-iter classes values)
-    (if (null? classes)
-	(greatest-number values)
-	(common-iter (cdr classes) (find-and-inc (car classes) values))))
-  (common-iter classes '()))
+  (define (greatest-number h)
+    (foldl (lambda (p a) (if (< (cdr p) (cdr a)) a p))
+	   (cons '() 0)
+	   (hash->list h)))
+  (define (collect-values hash values)
+    (if (null? values)
+	hash
+	(collect-values
+	 (hash-update hash (car values) (lambda (x) (+ x 1)) 0)
+	 (cdr values))))
+  (greatest-number (collect-values (make-immutable-hash) classes)))
 
 (define (best-classifies attributes examples)
   (foldl (lambda (attrib acc)
@@ -85,13 +78,15 @@
 	    (if (> gains (car acc))
 		(cons gains attrib)
 		acc)))
-         (cons 0 '()) attributes)) ;;todo
+         (cons -1 '()) attributes))
+
 
 (define (list-values attribute examples)
   (foldl (lambda (x acc)
 	   (if (not (member (attribute x) acc))
 	       (cons (attribute x) acc)
 	       acc))'() examples))
+
 (define (filter-on-attribute attribute examples)
   (define (filter-iter hash examples)
     (if (null? examples) hash
@@ -101,36 +96,45 @@
 	   (cdr examples)))))
   (filter-iter (make-hash) examples))
 
-(define (make-dec-tree classifier attributes examples)
-  (let ((classes (map classifier examples)))
-    (cond ((all-positive classes)
-	   't)
-	  ((all-negative classes)
-	   'f)
-	  ((null? attributes) (most-common-value classes))
-	  (else (let ((attrib (cdr (best-classifies attributes examples))))
-		  (cons attrib (let ((remaining-attributes (remove attrib attributes))
-				     (values (list-values attrib examples))
-				     (value-hash (filter-on-attribute attrib examples)))
-				 (map (lambda (value) ((let ((remaining-examples (hash-ref value-hash value)))
-							 (if (null? remaining-examples)
-							     (most-common-value classes)
-							     (cons value
-								   (make-dec-tree classifier
-										  remaining-attributes
-										  remaining-examples)))))) values))))))))
+(define (make-tree classifier attributes examples)
+  (define (tree-itr a e)
+    (let ((c (map classifier e)))
+      (define (make-node attrib values)
+	(define (node-itr val-pair)
+	  (cond ((null? val-pair) '())
+		((null? (cdar val-pair)) (most-common-value c))
+		(else (cons (cons (caar val-pair)
+				  (tree-itr (remove attrib a) (cdar val-pair)))
+			    (node-itr (cdr val-pair))))))
+	(cons attrib  (node-itr values)))
+      (cond ((all-positive c) (car c))
+	    ((all-negative c) (car c))
+	    ((null? a) (car  (most-common-value c)))
+	    (else (let ((best-a (cdr (best-classifies a e))))
+		    (make-node best-a  (hash->list (filter-on-attribute best-a e))))))))
+  (tree-itr attributes examples))
 
+(define (run-tree tree sample)
+  (define (run-itr tree)
+    (define (test-value attrib values)
+      (cond ((null? values)
+	     (error "sample doesn't match any of the values... u goofed" tree sample))
+	    ((eq? (caar values) (attrib sample))
+	     (run-itr (cdar values)))
+	    (else (test-value attrib (cdr values))))) 
+    (cond ((null? tree) (error "Whoops we didn't end up classifying this..."))
+	  ((pair? tree) (test-value (car tree) (cdr tree)))
+	  (else tree)))
+  (run-itr tree))
 
-
-(define test-examples (list (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
+(define test-examples (list (cons 't 'weak) (cons 't 'medium) (cons 't 'weak)
+			    (cons 't 'weak) (cons 't 'medium) (cons 't 'weak)
 			    (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
-			    (cons 't 'strong) (cons 't 'strong) (cons 't 'strong)
-			    (cons 'f 'weak) (cons 'f 'weak) (cons 'f 'strong)
-			    (cons 'f 'strong) (cons 'f 'strong)))
+			    (cons 'f 'strong) (cons 'f 'strong) (cons 'f 'strong)
+			    (cons 'f 'medium) (cons 'f 'medium)))
 
+(define (class sample) (car sample))
 (define (wind-strength x) (cdr x))
 
-;;(- (entropy class test) (gain wind-strength test))
-
-					(make-dec-tree class (list wind-strength) test-examples)
-
+(define new-tree (make-tree class (list wind-strength) test-examples))
+(run-tree new-tree (cons '() 'weak))
