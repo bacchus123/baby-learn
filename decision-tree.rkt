@@ -4,13 +4,13 @@
   (let ((len (length samples)))
     (define (ent-iter s total seen-classes)
       (cond ((null? s) total)
-	    ((member (car (accessor s)) seen-classes)
+	    ((member (accessor (car s)) seen-classes)
 	     (ent-iter (cdr s) total seen-classes))
-	    (else (let ((ratio (/ (count accessor s (car (accessor s))) len)))
+	    (else (let ((ratio (/ (count accessor s (accessor (car s))) len)))
 		  (ent-iter
 		   (cdr s)
 		   (+ total (* -1 (* ratio (log2 ratio))))
-		   (cons (car (accessor s)) seen-classes))))))
+		   (cons (accessor (car s)) seen-classes))))))
     (ent-iter samples 0 '())))
 
 (define (count accessor samples target)
@@ -30,7 +30,7 @@
 (define (samples-with-attrib-val  value accessor samples)
   (filter (lambda (x) (eq? (accessor x) value)) samples))
 
-(define (gain attribute examples)
+(define (gain attribute classifier examples)
   (let ((len (length examples)))
     (define (gain-loop examples total seen-values)
       (cond ((null? examples) total)
@@ -43,21 +43,14 @@
 		     (cdr examples)
 		     (+ total
 			(* (/ (length with-this-value) len)
-			   (entropy class with-this-value))) (cons (attribute (car examples)) seen-values) )))))
+			   (entropy classifier with-this-value))) (cons (attribute (car examples)) seen-values) )))))
     (gain-loop examples 0 '())))
 
-
-(define (all-positive classes)
-  (all-the-same #t classes))
-(define (all-negative classes)
-  (all-the-same #f classes))
-
-(define (all-the-same value list)
-  (if (null? list)
-      #t
-      (if (not (eq? (car list) value))
-	  #f
-	  (all-the-same (cdr list) value))))
+(define (all-the-same list)
+  (define (loop val list)
+    (cond ((null? list) val)
+	  ((eq? val (car list)) (loop val (cdr list)))
+	  (else #f))) (loop (car list) (cdr list)))
 
 (define (most-common-value classes)
   (define (greatest-number h)
@@ -72,13 +65,13 @@
 	 (cdr values))))
   (greatest-number (collect-values (make-immutable-hash) classes)))
 
-(define (best-classifies attributes examples)
+(define (best-classifies attributes class examples)
   (foldl (lambda (attrib acc)
-	  (let ((gains (gain attrib examples)))
-	    (if (> gains (car acc))
+	  (let ((gains (gain attrib class examples)))
+	    (if (< gains (car acc))
 		(cons gains attrib)
 		acc)))
-         (cons -1 '()) attributes))
+         (cons (gain (car attributes) class examples) (car attributes)) (cdr attributes)))
 
 
 (define (list-values attribute examples)
@@ -107,11 +100,11 @@
 				  (tree-itr (remove attrib a) (cdar val-pair)))
 			    (node-itr (cdr val-pair))))))
 	(cons attrib  (node-itr values)))
-      (cond ((all-positive c) (car c))
-	    ((all-negative c) (car c))
-	    ((null? a) (car  (most-common-value c)))
-	    (else (let ((best-a (cdr (best-classifies a e))))
-		    (make-node best-a  (hash->list (filter-on-attribute best-a e))))))))
+      (let ((same (all-the-same c)))
+	(cond (same same)
+	      ((null? a) (car  (most-common-value c)))
+	      (else (let ((best-a (cdr (best-classifies a classifier  e))))
+			 (make-node best-a  (hash->list (filter-on-attribute best-a e)))))))))
   (tree-itr attributes examples))
 
 (define (run-tree tree sample)
@@ -127,14 +120,31 @@
 	  (else tree)))
   (run-itr tree))
 
-(define test-examples (list (cons 't 'weak) (cons 't 'medium) (cons 't 'weak)
-			    (cons 't 'weak) (cons 't 'medium) (cons 't 'weak)
-			    (cons 't 'weak) (cons 't 'weak) (cons 't 'weak)
-			    (cons 'f 'strong) (cons 'f 'strong) (cons 'f 'strong)
-			    (cons 'f 'medium) (cons 'f 'medium)))
+(define test-examples (list (list 'sunny 'hot 'high 'weak 'f)
+			    (list 'sunny 'hot 'high 'strong 'f)
+			    (list 'overcast 'hot 'high 'weak 't)
+			    (list 'rain 'mild 'high 'weak 't)
+			    (list 'rain 'cool 'normal 'weak 't)
+			    (list 'rain 'cool 'normal 'strong 'f)
+			    (list 'overcast 'cool 'normal 'strong 't)
+			    (list 'sunny 'mild 'high 'weak 'f)
+			    (list 'sunny 'cool 'normal 'weak 't)
+			    (list 'rain 'mild 'normal 'weak 't)
+			    (list 'sunny 'mild 'normal 'strong 't)
+			    (list 'overcast 'mild 'high 'strong 't)
+			    (list 'overcast 'hot 'normal 'weak 't)
+			    (list 'rain 'mild 'high 'strong 'f)))
 
-(define (class sample) (car sample))
-(define (wind-strength x) (cdr x))
+(define (classifier sample) (list-ref sample 4))
+(define (wind-strength x) (list-ref x 3))
+(define (humidity x) (list-ref x 2))
+(define (temperature x) (list-ref x 1))
+(define (outlook x) (list-ref x 0))
 
-(define new-tree (make-tree class (list wind-strength) test-examples))
-(run-tree new-tree (cons '() 'weak))
+
+
+(define new-tree (make-tree classifier (list wind-strength humidity  temperature outlook) test-examples))
+new-tree
+
+
+
