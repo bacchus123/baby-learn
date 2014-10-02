@@ -47,10 +47,10 @@
     (gain-loop examples 0 '())))
 
 (define (all-the-same list)
-  (define (loop val list)
-    (cond ((null? list) val)
-	  ((eq? val (car list)) (loop val (cdr list)))
-	  (else #f))) (loop (car list) (cdr list)))
+  (foldl (lambda (x acc)
+	   (if (eq? (cdr acc) x)
+	       acc
+	       (cons #f '()))) (cons #t (car list)) (cdr list)))
 
 (define (most-common-value classes)
   (define (greatest-number h)
@@ -81,13 +81,10 @@
 	       acc))'() examples))
 
 (define (filter-on-attribute attribute examples)
-  (define (filter-iter hash examples)
-    (if (null? examples) hash
-	(let ((value (attribute (car examples))))
-	  (filter-iter
-	   (begin (hash-set! hash value (cons (car examples) (hash-ref! hash value '()))) hash)
-	   (cdr examples)))))
-  (filter-iter (make-hash) examples))
+  (foldl (lambda (sample acc)
+	   (hash-update acc (attribute sample) (lambda (x) (cons sample x)) '()))
+	 (make-immutable-hash)
+	 examples))
 
 (define (make-tree classifier attributes examples)
   (define (tree-itr a e)
@@ -101,7 +98,7 @@
 			    (node-itr (cdr val-pair))))))
 	(cons attrib  (node-itr values)))
       (let ((same (all-the-same c)))
-	(cond (same same)
+	(cond ((car same) (cdr same))
 	      ((null? a) (car  (most-common-value c)))
 	      (else (let ((best-a (cdr (best-classifies a classifier  e))))
 			 (make-node best-a  (hash->list (filter-on-attribute best-a e)))))))))
