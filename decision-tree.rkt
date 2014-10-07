@@ -66,39 +66,39 @@
 	   (cdr values))))
     (greatest-number (collect-values (make-immutable-hash) classes)))
 
-  (define (split-point attrib class  examples)
+  (define (split-point attrib class examples)
     (let ((gain-for-attrib
 	   (lambda (val) (lambda (x) (if (<= (attrib x) val) 1 0)))))
       (define (candidate-gain x)
 	(letrec ((candidate-split (gain-for-attrib (attrib x)))
 		 (gains (gain candidate-split class examples)))
-	  (cons gains candidate-split)))
+	  (cons gains (cons candidate-split attrib))))
       (foldl (lambda (x acc)
 	       (let ((gains (candidate-gain x)))
-		  (if (< gains (car acc))
-		      gains
-		      acc)))
+		 (if (< (car gains) (car acc))
+		     gains
+		     acc)))
 	     (candidate-gain (car examples))
 	     (cdr examples))))
   
   (define (best-classifies attributes class examples)
     (foldl (lambda (attrib acc)
-	      (let ((gains (gain attrib class examples)))
-		(if (< gains (car acc))
-		    (cons gains attrib)
-		    acc)))
+	     (let ((gains (gain attrib class examples)))
+	       (if (< gains (car acc))
+		   (cons gains attrib)
+		   acc)))
 	   (cons (gain (car attributes) class examples) (car attributes)) (cdr attributes)))
 
 
   (define (list-values attribute examples)
     (foldl (lambda (x acc)
-	      (if (not (member (attribute x) acc))
-		  (cons (attribute x) acc)
-		  acc))'() examples))
+	     (if (not (member (attribute x) acc))
+		 (cons (attribute x) acc)
+		 acc))'() examples))
 
   (define (filter-on-attribute attribute examples)
     (foldl (lambda (sample acc)
-	      (hash-update acc (attribute sample) (lambda (x) (cons sample x)) '()))
+	     (hash-update acc (attribute sample) (lambda (x) (cons sample x)) '()))
 	   (make-immutable-hash)
 	   examples))
 
