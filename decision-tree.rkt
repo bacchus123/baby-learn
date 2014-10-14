@@ -51,7 +51,7 @@
     (foldl (lambda (x acc)
 	     (if (equal? (cdr acc) x)
 		 acc
-		 (cons #f '()))) (cons #t (car list)) (cdr list)))
+		 '())) (car list) (cdr list)))
 
   (define (most-common-value classes)
     (define (greatest-number h)
@@ -66,28 +66,46 @@
 	   (cdr values))))
     (greatest-number (collect-values (make-immutable-hash) classes)))
 
-  (define (split-point attrib class examples)
+
+  (define (make-attribute gain accessor discrete-function)
+    (cons gain (cons accessor discrete-function)))
+  (define (gain-val continuous-attribute) (car continuous-attribute))
+  (define (original-attribute continuous-attribute) (cadr continuous-attribute))
+  (define (attribute-function continuous-attribute) (cddr continuous-attribute))
+
+  
+  (define (max-continous attrib class examples)
     (let ((gain-for-attrib
 	   (lambda (val) (lambda (x) (if (<= (attrib x) val) 1 0)))))
       (define (candidate-gain x)
 	(letrec ((candidate-split (gain-for-attrib (attrib x)))
 		 (gains (gain candidate-split class examples)))
-	  (cons gains (cons candidate-split attrib))))
+	  (make-attribute gains attrib candidate-split)))
       (foldl (lambda (x acc)
 	       (let ((gains (candidate-gain x)))
-		 (if (< (car gains) (car acc))
+		 (if (< (gain-val gains) (gain-val acc))
 		     gains
 		     acc)))
 	     (candidate-gain (car examples))
 	     (cdr examples))))
   
-  (define (best-classifies attributes class examples)
+  (define (max-discrete attributes class examples)
     (foldl (lambda (attrib acc)
 	     (let ((gains (gain attrib class examples)))
-	       (if (< gains (car acc))
-		   (cons gains attrib)
+	       (if (< gains (gain-val acc))
+		   (make-attribute gains attrib attrib)
 		   acc)))
-	   (cons (gain (car attributes) class examples) (car attributes)) (cdr attributes)))
+	   (make-attribute (gain (car attributes) class examples)
+			   (car attributes)
+			   (car attributes))
+	   (cdr attributes)))
+  
+  (define (best-classifies discrete-attributes continuous-attributes class examples)
+    (let ((best-discrete (max-discrete))
+	  (best-continuous (max-continuous continuous-attributes class examples)))
+      (if (> (gain-val best-continuous) (gain-val best-discrete))
+	  best-continuous
+	  best-discrete)))
 
 
   (define (list-values attribute examples)
@@ -114,8 +132,8 @@
 			      (node-itr (cdr val-pair))))))
 	  (cons attrib (node-itr values)))
 	(let ((same (all-the-same c)))
-	  (cond ((car same) (cdr same))
-		((null? a) (car  (most-common-value c)))
+	  (cond ((not (null? same)) same)
+		((null? a) (car (most-common-value c)))
 		(else (let ((best-a (cdr (best-classifies a classifier  e))))
 			(make-node best-a  (hash->list (filter-on-attribute best-a e)))))))))
     (tree-itr attributes examples))
