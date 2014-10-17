@@ -32,7 +32,10 @@
 			     (else 0))))
 
 
-(define (cont-age sample) (list-ref sample 5))
+(define (cont-age sample) (let ((age  (string->number (list-ref sample 5))))
+			    (if age
+				age
+				-1)))
 (define (pass-id sample) (list-ref sample 0))
   
 (define (fare sample) (let ((fare (string->number (list-ref sample 9))))
@@ -45,10 +48,11 @@
 			       (if l
 				   l
 				   -1)))
+
 (define (embarked sample) (list-ref sample) 11)
 
 (define titanic-tree
-  (make-tree survives (list class sex (cons 'c cont-fare)) training-set))
+  (make-tree survives (list class sex  (cons 'c cont-fare)) training-set))
 
 (define (run-model) (begin (display "PassengerId,Survived")
 			   (newline)
