@@ -1,5 +1,6 @@
 #lang racket
 (provide make-tree run-tree)
+
 (define (entropy accessor samples)
   (let ((len (length samples)))
     (define (ent-iter s total seen-classes)
@@ -72,7 +73,7 @@
 (define (original-attribute continuous-attribute) (cadr continuous-attribute))
 (define (attribute-function continuous-attribute) (cddr continuous-attribute))
 
-  
+
 (define (measure-continuous-attribute attrib class examples)
   (let* ((func (cdr attrib))
 	 (gain-for-attrib (lambda (val)
@@ -84,24 +85,25 @@
       (letrec ((candidate-split (gain-for-attrib (func samp)))
 	       (gains (gain candidate-split class examples)))
 	(make-attribute gains attrib candidate-split)))
-    (foldl (lambda (x acc)
-	     (let ((gains (candidate-gain x)))
-	       (if (< (gain-val gains) (gain-val acc))
-		   gains
-		   acc)))
-	   (candidate-gain (car examples))
-	   (cdr examples))))
-  
+    (define (loop l seen acc) 
+      (cond ((null? l) acc)
+	    ((member (car l) seen) (loop (cdr l) seen acc))
+	    (else (let ((gains (candidate-gain x)))
+		    (if (< (gain-val gains) (gain-val acc))
+			(loop (cdr rest) (cons head seen) gains)
+			(loop (cdr rest) (cons head seen) acc))))))
+    (loop examples '((car examples)) (candidate-gain (car examples)))))
+
 (define (measure-discrete-attribute attrib class examples)
   (make-attribute (gain attrib class examples)
 		  attrib
 		  attrib))
-  
+
 (define (measure-attribute a c e)
   (if (and (pair? a) (eq? 'c (car a))) 
       (measure-continuous-attribute a c e)
       (measure-discrete-attribute a c e)))
-  
+
 (define (best-classifies attributes class examples)
   (foldl (lambda (attrib acc)
 	   (let ((measured (measure-attribute attrib class examples)))
